@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clap-Clap · 五行拍手对战（联机）</title>
+<style>
+  :root {
+    --bg: #14171f; --panel: #1e2330; --panel2: #262c3d; --line: #39415a;
+    --text: #e8ecf5; --dim: #9aa3b8; --gold: #e8b64c; --red: #e06c5a;
+    --green: #6cc28a; --blue: #5a9be0; --purple: #a07ce0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    font-family: "Microsoft YaHei", system-ui, sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .wrap { width: min(920px, 100%); }
+  h1 { font-size: 22px; text-align: center; margin-bottom: 14px; letter-spacing: 4px; color: var(--gold); }
+  h1 small { display: block; font-size: 12px; color: var(--dim); letter-spacing: 2px; margin-top: 4px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .hidden { display: none !important; }
+
+  /* 连接/大厅 */
+  #screen-connect .panel, #screen-lobby .panel { max-width: 420px; margin: 0 auto; text-align: center; }
+  input[type=text] {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel2); color: var(--text); font-size: 15px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--gold); }
+  .btn {
+    display: inline-block; padding: 10px 22px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel2); color: var(--text); font-size: 15px; cursor: pointer; transition: all .15s;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); transform: translateY(-1px); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.primary { background: var(--gold); border-color: var(--gold); color: #20180a; font-weight: bold; }
+  .btn.primary:hover:not(:disabled) { filter: brightness(1.1); color: #20180a; }
+  .mt { margin-top: 14px; } .mt-s { margin-top: 8px; }
+  .tip { color: var(--dim); font-size: 13px; line-height: 1.7; }
+
+  /* 对战 */
+  .arena { display: grid; grid-template-columns: 1fr 90px 1fr; gap: 10px; align-items: stretch; }
+  .fighter { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; position: relative; }
+  .fighter.me { border-color: var(--gold); }
+  .fname { font-size: 17px; font-weight: bold; }
+  .ftag { font-size: 11px; color: var(--gold); border: 1px solid var(--gold); border-radius: 4px; padding: 0 5px; margin-left: 6px; }
+  .hpbar { height: 14px; background: #10131b; border-radius: 7px; overflow: hidden; margin: 10px 0 4px; border: 1px solid var(--line); }
+  .hpfill { height: 100%; background: linear-gradient(90deg, var(--green), #8fe0a8); transition: width .4s; border-radius: 7px; }
+  .hpnum { font-size: 12px; color: var(--dim); }
+  .elems { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .elem {
+    width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: bold; border: 2px solid transparent; opacity: .25; transition: all .2s;
+    background: var(--panel2);
+  }
+  .elem.on { opacity: 1; }
+  .elem[data-el=Jin] { color: var(--gold); } .elem[data-el=Mu] { color: var(--green); }
+  .elem[data-el=Shui] { color: var(--blue); } .elem[data-el=Huo] { color: var(--red); }
+  .elem[data-el=Tu] { color: #c9a06a; }
+  .statuses { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px; min-height: 22px; }
+  .st { font-size: 11px; border-radius: 4px; padding: 2px 7px; background: var(--panel2); border: 1px solid var(--line); }
+  .st.bad { color: var(--red); border-color: rgba(224,108,90,.4); }
+  .st.good { color: var(--green); border-color: rgba(108,194,138,.4); }
+
+  .vs { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  .vs .round-no { font-size: 13px; color: var(--dim); writing-mode: initial; }
+  .vs .big { font-size: 24px; font-weight: bold; color: var(--gold); }
+  #countdown { font-size: 12px; color: var(--dim); }
+
+  .actions { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .arow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .abtn {
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2);
+    color: var(--text); cursor: pointer; font-size: 14px; transition: all .15s;
+  }
+  .abtn:hover:not(:disabled) { border-color: var(--gold); }
+  .abtn.sel { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+  .abtn:disabled { opacity: .35; cursor: not-allowed; }
+  .alabel { font-size: 12px; color: var(--dim); min-width: 58px; }
+  select {
+    padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel2); color: var(--text); font-size: 14px; outline: none;
+  }
+  #commitBtn { padding: 10px 34px; font-size: 16px; }
+  #lockTip { color: var(--gold); font-size: 14px; }
+
+  .logbox {
+    margin-top: 12px; background: #10131b; border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; height: 180px; overflow-y: auto; font-size: 13px; line-height: 1.9;
+  }
+  .logbox div { border-bottom: 1px dashed rgba(57,65,90,.35); padding: 1px 0; }
+  .sysline { color: var(--dim); }
+
+  /* 结算遮罩 */
+  #overlay {
+    position: fixed; inset: 0; background: rgba(10,12,18,.82); display: flex;
+    align-items: center; justify-content: center; z-index: 50;
+  }
+  #overlay .card { text-align: center; padding: 40px 60px; background: var(--panel); border: 1px solid var(--gold); border-radius: 16px; }
+  #endText { font-size: 26px; font-weight: bold; color: var(--gold); margin-bottom: 20px; }
+
+  #connState { position: fixed; top: 10px; right: 14px; font-size: 12px; color: var(--dim); }
+  #connState.err { color: var(--red); }
+</style>
+</head>
+<body>
+<div id="connState">未连接</div>
+<div class="wrap">
+  <h1>CLAP·CLAP<small>五行拍手对战 · 联机版 V4.0</small></h1>
+
+  <!-- 连接 -->
+  <div id="screen-connect">
+    <div class="panel">
+      <div class="tip">输入你的名号，快速匹配同台竞技</div>
+      <input type="text" id="nameInput" maxlength="12" placeholder="名号（最多 12 字）" class="mt">
+      <div class="mt"><button class="btn primary" id="joinBtn">快 速 匹 配</button></div>
+      <div class="tip mt" id="connectErr"></div>
+    </div>
+  </div>
+
+  <!-- 大厅 -->
+  <div id="screen-lobby" class="hidden">
+    <div class="panel">
+      <div class="tip" id="lobbyText">正在寻找对手…</div>
+      <div class="tip mt-s" id="lobbyPlayers"></div>
+      <div class="mt"><button class="btn" id="leaveBtn">离开</button></div>
+    </div>
+  </div>
+
+  <!-- 对战 -->
+  <div id="screen-game" class="hidden">
+    <div class="arena">
+      <div class="fighter me" id="f0">
+        <span class="fname" id="name0">—</span><span class="ftag">你</span>
+        <div class="hpbar"><div class="hpfill" id="hp0" style="width:100%"></div></div>
+        <div class="hpnum" id="hpnum0">3 / 3</div>
+        <div class="elems" id="elems0"></div>
+        <div class="statuses" id="sts0"></div>
+      </div>
+      <div class="vs">
+        <div class="round-no">回合</div>
+        <div class="big" id="roundNo">1</div>
+        <div id="countdown"></div>
+      </div>
+      <div class="fighter" id="f1">
+        <span class="fname" id="name1">—</span>
+        <div class="hpbar"><div class="hpfill" id="hp1" style="width:100%"></div></div>
+        <div class="hpnum" id="hpnum1">3 / 3</div>
+        <div class="elems" id="elems1"></div>
+        <div class="statuses" id="sts1"></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <div class="arow">
+        <span class="alabel">接取</span>
+        <button class="abtn gbtn" data-gather="Jin">金</button>
+        <button class="abtn gbtn" data-gather="Mu">木</button>
+        <button class="abtn gbtn" data-gather="Shui">水</button>
+        <button class="abtn gbtn" data-gather="Huo">火</button>
+        <button class="abtn gbtn" data-gather="Tu">土</button>
+        <button class="abtn" id="defBtn">防御</button>
+        <button class="abtn hidden" id="repeatBtn">复读上一手</button>
+      </div>
+      <div class="arow mt-s">
+        <span class="alabel">使用</span>
+        <select id="useSelect"></select>
+        <span class="tip" id="useCost"></span>
+      </div>
+      <div class="arow mt-s" style="justify-content:center">
+        <button class="btn primary" id="commitBtn">出 招！</button>
+        <span id="lockTip" class="hidden">已提交，等待对手…</span>
+      </div>
+    </div>
+
+    <div class="logbox" id="logBox"></div>
+  </div>
+</div>
+
+<!-- 结算 -->
+<div id="overlay" class="hidden">
+  <div class="card">
+    <div id="endText">—</div>
+    <button class="btn primary" id="againBtn">再 来 一 局</button>
+  </div>
+</div>
+
+<script src="/vendor/colyseus.js"></script>
+<script src="/engine.js"></script>
+<script src="/online.js"></script>
+</body>
+</html>

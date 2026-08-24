@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clap-Clap · 五行拍手对战</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="game-container">
+
+    <header class="game-header">
+      <div class="title-block">
+        <h1 class="game-title">
+          <span class="title-emoji">👏</span> Clap-Clap
+          <span class="title-sep">·</span>
+          <span class="accent">五</span><span class="accent-pink">行</span>对战
+        </h1>
+        <span class="game-subtitle">金 · 木 · 水 · 火 · 土</span>
+      </div>
+      <span class="round-info" id="round-info">回合 1</span>
+    </header>
+
+    <main class="arena">
+
+      <section class="player player-left" id="player-0">
+        <div class="player-header">
+          <div class="player-id">
+            <span class="player-name">P1</span>
+            <span class="player-tag">你</span>
+          </div>
+          <span class="player-action" id="action-label-0">等待选择...</span>
+        </div>
+        <div class="character"><span class="aura"></span>🤜</div>
+        <div class="hud hp-bar" id="hp-bar-0">
+          <span class="hud-label">HP</span>
+          <div class="hearts" id="hp-0">
+            <span class="heart"></span>
+            <span class="heart"></span>
+            <span class="heart"></span>
+          </div>
+          <span class="hp-num" id="hp-num-0">3/3</span>
+        </div>
+        <div class="hud elements-bar">
+          <span class="hud-label el-label">元素</span>
+          <div class="el-chips" id="elements-0">
+            <span class="el-chip el-jin" data-el="Jin" title="金"><span class="el-icon">金</span><span class="el-count">0</span></span>
+            <span class="el-chip el-mu" data-el="Mu" title="木"><span class="el-icon">木</span><span class="el-count">0</span></span>
+            <span class="el-chip el-shui" data-el="Shui" title="水"><span class="el-icon">水</span><span class="el-count">0</span></span>
+            <span class="el-chip el-huo" data-el="Huo" title="火"><span class="el-icon">火</span><span class="el-count">0</span></span>
+            <span class="el-chip el-tu" data-el="Tu" title="土"><span class="el-icon">土</span><span class="el-count">0</span></span>
+          </div>
+        </div>
+        <div class="hud weapons-row" id="weapons-0" hidden>
+          <span class="hud-label">武器</span>
+          <div class="weapon-chips">
+            <span class="weapon-chip" id="w-gatling-0">加特林</span>
+            <span class="weapon-chip" id="w-dual-0">双枪</span>
+            <span class="weapon-chip" id="w-ap-0">穿甲弹</span>
+          </div>
+        </div>
+        <div class="hud status-row" id="status-0" hidden>
+          <span class="hud-label">状态</span>
+          <div class="status-chips" id="status-chips-0"></div>
+        </div>
+      </section>
+
+      <section class="stage">
+        <div class="vs-emblem" aria-hidden="true"><span>VS</span></div>
+        <div class="status-text" id="status-text">请选择动作</div>
+        <div class="report" id="report" hidden></div>
+      </section>
+
+      <section class="player player-right" id="player-1">
+        <div class="player-header">
+          <div class="player-id">
+            <span class="player-name">P2</span>
+            <span class="player-tag" id="ai-tag">AI</span>
+          </div>
+          <span class="player-action" id="action-label-1">等待选择...</span>
+        </div>
+        <div class="character"><span class="aura"></span>🤛</div>
+        <div class="hud hp-bar" id="hp-bar-1">
+          <span class="hud-label">HP</span>
+          <div class="hearts" id="hp-1">
+            <span class="heart"></span>
+            <span class="heart"></span>
+            <span class="heart"></span>
+          </div>
+          <span class="hp-num" id="hp-num-1">3/3</span>
+        </div>
+        <div class="hud elements-bar">
+          <span class="hud-label el-label">元素</span>
+          <div class="el-chips" id="elements-1">
+            <span class="el-chip el-jin" data-el="Jin" title="金"><span class="el-icon">金</span><span class="el-count">0</span></span>
+            <span class="el-chip el-mu" data-el="Mu" title="木"><span class="el-icon">木</span><span class="el-count">0</span></span>
+            <span class="el-chip el-shui" data-el="Shui" title="水"><span class="el-icon">水</span><span class="el-count">0</span></span>
+            <span class="el-chip el-huo" data-el="Huo" title="火"><span class="el-icon">火</span><span class="el-count">0</span></span>
+            <span class="el-chip el-tu" data-el="Tu" title="土"><span class="el-icon">土</span><span class="el-count">0</span></span>
+          </div>
+        </div>
+        <div class="hud weapons-row" id="weapons-1" hidden>
+          <span class="hud-label">武器</span>
+          <div class="weapon-chips">
+            <span class="weapon-chip" id="w-gatling-1">加特林</span>
+            <span class="weapon-chip" id="w-dual-1">双枪</span>
+            <span class="weapon-chip" id="w-ap-1">穿甲弹</span>
+          </div>
+        </div>
+        <div class="hud status-row" id="status-1" hidden>
+          <span class="hud-label">状态</span>
+          <div class="status-chips" id="status-chips-1"></div>
+        </div>
+      </section>
+
+      <div class="fx-layer" id="fx-layer"></div>
+    </main>
+
+    <nav class="controls">
+      <button class="action-btn" id="btn-gather"><span class="btn-ico">✋</span>接取</button>
+      <button class="action-btn" id="btn-use"><span class="btn-ico">✨</span>使用</button>
+      <button class="action-btn" data-action="defend"><span class="btn-ico">🛡️</span>防御</button>
+      <button class="action-btn next-btn" id="next-btn" hidden>下一回合</button>
+    </nav>
+
+    <div class="sub-panel" id="gather-panel" hidden>
+      <span class="sub-label">接取元素</span>
+      <button class="el-btn el-jin" data-el="Jin">金</button>
+      <button class="el-btn el-mu" data-el="Mu">木</button>
+      <button class="el-btn el-huo" data-el="Huo">火</button>
+      <button class="el-btn el-shui" data-el="Shui">水</button>
+      <button class="el-btn el-tu" data-el="Tu">土</button>
+      <button class="sub-cancel" id="gather-cancel">取消</button>
+    </div>
+
+    <div class="sub-panel use-panel" id="use-panel" hidden>
+      <span class="sub-label">选择路线</span>
+      <div class="route-list" id="route-list"></div>
+      <button class="sub-cancel" id="use-cancel">取消</button>
+    </div>
+
+    <div class="sub-panel use-panel" id="amount-panel" hidden>
+      <span class="sub-label">加特林射击 · 消耗金量</span>
+      <div class="route-list" id="amount-list"></div>
+      <button class="sub-cancel" id="amount-cancel">取消</button>
+    </div>
+
+    <footer class="game-footer">
+      <span class="footer-chip">你（P1）：接取元素 → 使用路线进攻</span>
+      <span class="footer-chip" id="ai-chip">对手（AI）：金匠 · 木控 · 火爆 · 均衡 · 防守</span>
+    </footer>
+
+  </div>
+
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div class="modal">
+      <div class="modal-trophy">🏆</div>
+      <h2 class="modal-title" id="modal-title">获胜！</h2>
+      <button class="modal-btn" id="restart-btn">重新开局</button>
+    </div>
+  </div>
+
+  <script src="engine.js"></script>
+  <script src="ai.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
