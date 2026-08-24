@@ -146,17 +146,17 @@ describe('金系', () => {
     assert(r.p2_hp_change === -2, 'got ' + r.p2_hp_change);
   });
 
-  it('穿甲射击 vs 防御：1 伤穿透', () => {
+  it('穿甲射击 vs 防御：2 伤穿透', () => {
     const e = fresh();
     e.players[0].elements.Jin = 1;
     e.executeRound(use('Jin', 'craftAP'), DEF);
     assert(e.players[0].weapons.armorPiercing === 1, 'no AP');
     const r = e.executeRound(use('Jin', 'apFire'), DEF);
-    assert(r.p2_hp_change === -1, 'got ' + r.p2_hp_change);
+    assert(r.p2_hp_change === -2, 'got ' + r.p2_hp_change);
     assert(e.players[0].weapons.armorPiercing === 0, 'AP not consumed');
   });
 
-  it('穿甲弹击碎荆棘之墙：伤害提升为 2 且不反弹', () => {
+  it('穿甲弹击碎荆棘之墙：2 伤照常生效且不反弹', () => {
     const e = fresh();
     e.players[0].weapons.armorPiercing = 1;
     e.players[1].elements.Mu = 2;
@@ -444,7 +444,7 @@ describe('藤蔓束缚平衡', () => {
     e.players[0].weapons.armorPiercing = 1;
     const r = e.executeRound(use('Jin', 'apFire'), gather('Jin'));
     assert(e.players[1].status.bindTurns === 0, 'got ' + e.players[1].status.bindTurns);
-    assert(r.p2_hp_change === -1, 'AP should pierce defense, got ' + r.p2_hp_change);
+    assert(r.p2_hp_change === -2, 'AP should pierce defense, got ' + r.p2_hp_change);
     assert(r.log_message.indexOf('挣脱') !== -1, r.log_message);
   });
 
@@ -812,7 +812,7 @@ describe('土系', () => {
     e.players[0].weapons.armorPiercing = 1;
     e.players[1].status.shellLayers = 3;
     const r = e.executeRound(use('Jin', 'apFire'), gather('Tu'));
-    assert(r.p2_hp_change === -1, 'got ' + r.p2_hp_change);
+    assert(r.p2_hp_change === -2, 'got ' + r.p2_hp_change);
     assert(e.players[1].status.shellLayers === 3, 'got ' + e.players[1].status.shellLayers);
   });
 
@@ -865,12 +865,12 @@ describe('土系', () => {
     assert(r.p1_hp_change === -2, 'single reflect only, got ' + r.p1_hp_change);
   });
 
-  it('穿甲弹打荆棘岩：伤害生效且反弹照常触发', () => {
+  it('穿甲弹打荆棘岩：2 伤生效且反弹照常触发', () => {
     const e = fresh();
     e.players[0].weapons.armorPiercing = 1;
     e.players[1].elements.Tu = 2;
     const r = e.executeRound(use('Jin', 'apFire'), use('Tu', 'thornRock'));
-    assert(r.p2_hp_change === -1, 'AP pierces immunity, got ' + r.p2_hp_change);
+    assert(r.p2_hp_change === -2, 'AP pierces immunity, got ' + r.p2_hp_change);
     assert(r.p1_hp_change === -2, 'reflect still fires, got ' + r.p1_hp_change);
   });
 
@@ -1010,19 +1010,19 @@ describe('V4.0 多人平衡（≥3 人局生效）', () => {
     assert(e.players[1].status.bindImmuneTurns === 1, 'got ' + e.players[1].status.bindImmuneTurns);
   });
 
-  it('穿甲弹命中荆棘岩：正常伤害 + 震落 1 层岩壳 + 反弹照常', () => {
+  it('穿甲弹命中荆棘岩：2 伤 + 震落 1 层岩壳 + 反弹照常', () => {
     const e = new GameEngine(3);
     e.players[0].weapons.armorPiercing = 1;
     e.players[1].elements.Tu = 2;
     e.players[1].status.shellLayers = 1; // AP 震落这层后，反伤按无壳计算
     const r = e.executeRound(use('Jin', 'apFire'), use('Tu', 'thornRock'), DEF);
-    assert(e.players[1].hp === 2, 'AP should damage rock owner, got ' + e.players[1].hp);
+    assert(e.players[1].hp === 1, 'AP should damage rock owner by 2, got ' + e.players[1].hp);
     assert(e.players[1].status.shellLayers === 0, 'shell should drop to 0, got ' + e.players[1].status.shellLayers);
     assert(e.players[0].hp === 1, 'rock reflect 2 (no shell boost) to attacker, got ' + e.players[0].hp);
     assert(r.log_message.indexOf('震落') !== -1, r.log_message);
   });
 
-  it('穿甲弹击碎荆棘之墙：伤害+1、无反弹、压制该目标反伤（战报标记）', () => {
+  it('穿甲弹击碎荆棘之墙：2 伤照常、无反弹、压制该目标反伤（战报标记）', () => {
     const e = new GameEngine(3);
     e.players[0].elements.Mu = 2;
     e.players[1].elements.Huo = 1;
@@ -1067,6 +1067,53 @@ describe('V4.0 多人平衡（≥3 人局生效）', () => {
     e.submitAction(0, DEF);
     e.submitAction(2, DEF);
     assert(e.allActionsSubmitted(), 'dead player exempt from submitting');
+  });
+
+  it('双枪残局集火：仅剩一名存活对手时允许同目标（多人局）', () => {
+    const e = new GameEngine(3);
+    e.players[0].weapons.hasDualPistols = true;
+    e.players[0].elements.Jin = 9;
+    e.players[2].hp = 0;
+    // 显式指定同目标 → 应可行（仅 1 个存活对手）
+    const act = use('Jin', 'dualFire');
+    act.targets = [1, 1];
+    assert(e.isActionFeasible(0, act), 'solo opponent should allow focus fire');
+    const r = e.executeRound(act, gather('Mu'), DEF);
+    assert(r.hpChanges[1] === -2, 'both shots hit p1: ' + JSON.stringify(r.hpChanges));
+    assert(e.players[1].hp === 1, 'p1 should have 1 hp left: ' + e.players[1].hp);
+    // 不带目标走默认也应可行
+    const act2 = use('Jin', 'dualFire');
+    assert(e.isActionFeasible(0, act2), 'default target should also work');
+  });
+
+  it('双枪多人对手 ≥2 时仍须分流', () => {
+    const e = new GameEngine(3);
+    e.players[0].weapons.hasDualPistols = true;
+    e.players[0].elements.Jin = 9;
+    const bad = use('Jin', 'dualFire');
+    bad.targets = [1, 1];
+    assert(!e.isActionFeasible(0, bad), 'must split when 2+ opponents alive');
+    const good = use('Jin', 'dualFire');
+    good.targets = [1, 2];
+    assert(e.isActionFeasible(0, good), 'distinct targets should be feasible');
+  });
+
+  it('铸造类招式无需目标即可行（多人局）', () => {
+    const e = new GameEngine(3);
+    e.players[0].elements.Jin = 9;
+    e.players[0].elements.Mu = 9;
+    assert(e.isActionFeasible(0, use('Jin', 'craftGatling')), 'craftGatling needs no target');
+    assert(e.isActionFeasible(0, use('Jin', 'craftDual')), 'craftDual needs no target');
+    assert(e.isActionFeasible(0, use('Jin', 'craftAP')), 'craftAP needs no target');
+    assert(e.isActionFeasible(0, use('Mu', 'thorn')), 'Mu.thorn needs no target');
+  });
+
+  it('getAvailableRoutes：双枪铸造后列出 dualFire（多人局）', () => {
+    const e = new GameEngine(3);
+    e.players[0].elements.Jin = 9;
+    e.executeRound(use('Jin', 'craftDual'), gather('Jin'), gather('Jin'));
+    const routes = e.getAvailableRoutes(0, 'Jin');
+    assert(routes.indexOf('dualFire') !== -1, 'dualFire should be listed after crafting');
   });
 });
 

@@ -28,7 +28,7 @@ const ROUTE_COST = {
   'Jin.craftDual': '耗1金 · 获得双枪',
   'Jin.dualFire': '耗1金 · 2伤',
   'Jin.craftAP': '耗1金 · 获得穿甲弹',
-  'Jin.apFire': '耗1穿甲弹 · 1伤（击碎荆棘之墙时 2 伤）',
+  'Jin.apFire': '耗1穿甲弹 · 2伤（无视防御；命中荆棘之墙则击碎之）',
   'Mu.attack': '耗1木 · 1伤',
   'Mu.bind': '耗1木 · 束缚2回合（受击/金之斩可解 · 已束缚者免疫）',
   'Mu.seed': '耗2木 · 1伤+偷元素',

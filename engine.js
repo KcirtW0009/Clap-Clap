@@ -37,6 +37,10 @@ const MAX_HP = 5;
 const MAX_SHELL = 5;
 
 const SELF_ROUTES = Object.freeze({
+  'Jin.craftGatling': true,
+  'Jin.craftDual': true,
+  'Jin.craftAP': true,
+  'Mu.thorn': true,
   'Shui.spring': true,
   'Tu.shell': true,
   'Tu.thornRock': true,
@@ -237,12 +241,14 @@ class GameEngine {
     if (!t || t.length === 0) t = this._defaultTarget(i).filter(v => v !== i);
 
     if (key === 'Jin.dualFire') {
+      // V4.1：仅剩一名存活对手时（含 1v1），允许两发集火同一目标
+      const soloOpponent = this._aliveOthers(i).length === 1;
       if (t.length >= 2) {
         const pair = [t[0], t[1]];
         if (pair[0] !== pair[1]) return pair;
-        return n === 2 ? pair : null; // 1v1 可集火同一目标，多人必须分流
+        return soloOpponent ? pair : null; // 多人且对手 ≥2 时必须分流
       }
-      return n === 2 ? this._defaultTarget(i).concat(this._defaultTarget(i)) : null;
+      return soloOpponent ? this._defaultTarget(i).concat(this._defaultTarget(i)) : null;
     }
     if (key === 'Huo.fireRain') {
       const uniq = new Set(t);
@@ -344,6 +350,10 @@ class GameEngine {
       const r = routes[route];
       if (r.cost === 'amount') {
         return p.weapons.hasGatling && p.elements[element] >= 1;
+      }
+      // V4.1：双枪在多人局需显式分流目标，未带目标时按武器+资源判断可用性（由 UI 补目标流程）
+      if (route === 'dualFire') {
+        return p.weapons.hasDualPistols && p.elements.Jin >= (typeof r.cost === 'number' ? r.cost : 1);
       }
       return this.isActionFeasible(idx, { type: ACTION.USE, element, route });
     });
@@ -501,8 +511,8 @@ class GameEngine {
       let apply = true;
       if (ev.ap && this._wall[t]) {
         this._wall[t] = false;
-        amount = ev.amount + 1;
-        lines.push(P[t].name + ' 的荆棘之墙被穿甲弹击碎，伤害提升为 2！');
+        // V4.1：穿甲基础伤害已为 2，击碎墙体不再额外 +1
+        lines.push(P[t].name + ' 的荆棘之墙被穿甲弹击碎，2 点伤害照常生效、无反弹！');
         if (this.multiRules) {
           // V4.0：击碎木墙后压制该目标本回合的荆棘岩/岩脉共鸣反伤
           this._noReflect[t] = true;
@@ -764,7 +774,8 @@ class GameEngine {
       case 'Jin.apFire': {
         p.weapons.armorPiercing -= 1;
         const ta = (this._resolveTargets(i, act) || this._defaultTarget(i))[0];
-        events.push({ target: ta, amount: 1, ignore: true, ap: true, src: i });
+        // V4.1：穿甲射击基础伤害提升为 2（全局生效）
+        events.push({ target: ta, amount: 2, ignore: true, ap: true, src: i });
         lines.push(name + ' 使用 金→穿甲射击 → ' + P[ta].name + '！');
         break;
       }

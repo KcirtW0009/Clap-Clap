@@ -369,6 +369,47 @@
 .battle-log::-webkit-scrollbar { width: 8px; }
 .battle-log::-webkit-scrollbar-thumb { background: rgba(120, 132, 190, 0.4); border-radius: 4px; }
 
+/* ---- 多人聚焦模式（V4.1）：对手默认紧凑卡片，点击展开详情 ---- */
+.arena.focus-mode .player { cursor: pointer; }
+.arena.focus-mode .player.seat-me { cursor: default; }
+
+.arena.focus-mode .player:not(.seat-me):not(.expanded) {
+  flex: 1 1 190px;
+  min-width: 175px;
+  max-width: 260px;
+  padding: 12px 14px;
+  gap: 9px;
+}
+.arena.focus-mode .player:not(.seat-me):not(.expanded):hover {
+  border-color: rgba(94, 234, 212, 0.45);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45), 0 0 16px rgba(94,234,212,0.15);
+}
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .character {
+  width: 34px; height: 34px; margin: 2px auto 0;
+  font-size: 1rem; border-width: 1px;
+  box-shadow: 0 0 12px rgba(56,189,248,0.18), 0 4px 8px rgba(0,0,0,0.3);
+}
+.arena.focus-mode .player-right:not(.seat-me):not(.expanded) .character {
+  box-shadow: 0 0 12px rgba(244,114,182,0.18), 0 4px 8px rgba(0,0,0,0.3);
+}
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .character .aura { inset: -6px; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .player-name { font-size: 1.05rem; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .player-action {
+  max-width: 46%; overflow: hidden; text-overflow: ellipsis;
+}
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .hud { gap: 7px; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .hud-label { display: none; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .heart { font-size: 0.95rem; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .hearts { gap: 3px; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .hp-num { font-size: 1rem; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .hp-bar { padding: 6px 9px; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .el-chip { border-radius: 7px; padding: 2px 0; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .el-chip .el-icon { font-size: 0.62rem; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .el-chip .el-count { font-size: 0.78rem; }
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .weapon-chip,
+.arena.focus-mode .player:not(.seat-me):not(.expanded) .status-chip { font-size: 0.62rem; padding: 2px 8px; }
+.arena.focus-mode .player.expanded { border-color: rgba(94, 234, 212, 0.55); }
+
 .modal-actions {
   display: flex;
   gap: 12px;

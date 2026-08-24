@@ -25,7 +25,7 @@
     'Jin.craftDual': '耗1金 · 获得双枪',
     'Jin.dualFire': '耗1金 · 2伤',
     'Jin.craftAP': '耗1金 · 获得穿甲弹',
-    'Jin.apFire': '耗1穿甲弹 · 1伤（击碎荆棘之墙时 2 伤）',
+    'Jin.apFire': '耗1穿甲弹 · 2伤（无视防御；命中荆棘之墙则击碎之）',
     'Mu.attack': '耗1木 · 1伤',
     'Mu.bind': '耗1木 · 束缚2回合（受击/金之斩可解 · 已束缚者免疫）',
     'Mu.seed': '耗2木 · 1伤+偷元素',
@@ -44,7 +44,10 @@
     'Tu.vein': '耗3土 · 永久：每回合自动+1岩壳，防御时反震1伤'
   };
 
-  const NO_TARGET_ROUTES = new Set(['Mu.thorn', 'Shui.spring', 'Tu.shell', 'Tu.thornRock', 'Tu.vein']);
+  const NO_TARGET_ROUTES = new Set([
+    'Jin.craftGatling', 'Jin.craftDual', 'Jin.craftAP',
+    'Mu.thorn', 'Shui.spring', 'Tu.shell', 'Tu.thornRock', 'Tu.vein'
+  ]);
 
   let client = null;
   let room = null;
@@ -61,6 +64,7 @@
   let targetCfg = null;
   let targetSelected = [];
   let leavingByIntent = false;
+  let expandedSeat = -1;  // V4.1 聚焦模式：当前展开的对手座位（-1=无）
 
   function show(name) {
     $('#screen-connect').hidden = name !== 'connect';
@@ -207,6 +211,7 @@
     targetCfg = null;
     targetSelected = [];
     leavingByIntent = false;
+    expandedSeat = -1;
     me = { seat: -1, role: '', isHost: false };
     closeModal();
   }
@@ -367,6 +372,7 @@
     submittedLabel = '';
     closeAllPanels();
     renderAll();
+    applySeatExpand();
     updateRoleBadge();
     show('game');
     setStatus(canAct() ? '请选择动作' : (me.role === 'spectator' ? '观战中' : '请选择动作'));
@@ -386,6 +392,7 @@
     $('#report').hidden = true;
     $('#fx-layer').innerHTML = '';
     renderAll();
+    applySeatExpand();
     updateRoleBadge();
     setStatus(canAct() ? '请选择动作' :
       (viewPlayers[me.seat] && viewPlayers[me.seat].hp <= 0 ? '你已出局，观战中' : '观战中'));
@@ -454,8 +461,9 @@
 
   function buildArena(n) {
     const arena = $('#arena');
-    arena.className = 'arena ' + (n === 2 ? 'duo' : 'multi');
+    arena.className = 'arena ' + (n === 2 ? 'duo' : 'multi') + (n > 2 ? ' focus-mode' : '');
     arena.innerHTML = '';
+    expandedSeat = -1;
     const half = Math.ceil(n / 2);
     for (let i = 0; i < n; i++) {
       arena.insertAdjacentHTML('beforeend', seatPanelHTML(i));
@@ -465,6 +473,25 @@
     arena.insertAdjacentHTML('beforeend', '<div class="fx-layer" id="fx-layer"></div>');
     for (let i = 0; i < n; i++) {
       $('#seat-' + i).classList.add(i < half ? 'player-left' : 'player-right');
+      // V4.1：多人聚焦模式下，点击对手卡片展开/收起详情
+      if (n > 2) {
+        const sec = $('#seat-' + i);
+        sec.title = '点击展开 / 收起详情';
+        sec.addEventListener('click', () => toggleSeatExpand(i));
+      }
+    }
+  }
+
+  function toggleSeatExpand(i) {
+    expandedSeat = expandedSeat === i ? -1 : i;
+    applySeatExpand();
+  }
+
+  function applySeatExpand() {
+    for (let j = 0; j < viewPlayers.length; j++) {
+      const sec = $('#seat-' + j);
+      if (!sec) continue;
+      sec.classList.toggle('expanded', j === expandedSeat);
     }
   }
 
@@ -531,6 +558,7 @@
     const sec = $('#seat-' + i);
     if (!sec) return;
 
+    sec.classList.toggle('seat-me', me.role === 'player' && me.seat === i);
     sec.querySelector('.player-name').textContent = p.name || ('玩家' + (i + 1));
     const tags = [];
     if (me.role === 'player' && me.seat === i) tags.push('你');
@@ -672,9 +700,16 @@
       const entries = [];
       for (const route of Object.keys(ROUTES[el])) {
         if (allowed && !allowed.has(el + '.' + route)) continue;
-        const feasible = route === 'gatlingFire'
-          ? mirrorPlayer().weapons.hasGatling && mirrorPlayer().elements.Jin >= 1
-          : mirror.isActionFeasible(me.seat, { type: ACTION.USE, element: el, route });
+        const mp = mirrorPlayer();
+        let feasible;
+        if (route === 'gatlingFire') {
+          feasible = mp.weapons.hasGatling && mp.elements.Jin >= 1;
+        } else if (route === 'dualFire') {
+          // V4.1：双枪在多人局按武器+资源判断即可，由 pickRoute 流程补目标
+          feasible = mp.weapons.hasDualPistols && mp.elements.Jin >= 1;
+        } else {
+          feasible = mirror.isActionFeasible(me.seat, { type: ACTION.USE, element: el, route });
+        }
         if (!feasible) continue;
         entries.push(route);
       }
