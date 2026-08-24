@@ -12,7 +12,7 @@
   "dependencies": {
     "@colyseus/ws-transport": "^0.15.3",
     "colyseus": "^0.15.57",
-    "colyseus.js": "^0.15.28",
+    "colyseus.js": "0.15.27",
     "express": "^4.22.2"
   }
 }
