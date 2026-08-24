@@ -598,9 +598,9 @@
     if (st.burnTurns > 0) chips.appendChild(statusChip('灼烧', 'st-burn'));
     if (st.seedTurns > 0) chips.appendChild(statusChip('寄生', 'st-seed'));
     if (st.wetTurns > 0) chips.appendChild(statusChip('水渍', 'st-wet'));
-    if (st.scourImmuneTurns > 0) chips.appendChild(statusChip('免疫冲刷 ' + st.scourImmuneTurns, 'st-wet'));
-    if (st.seedImmuneTurns > 0) chips.appendChild(statusChip('免疫种子 ' + st.seedImmuneTurns, 'st-seed'));
-    if (st.bindImmuneTurns > 0) chips.appendChild(statusChip('免疫束缚 ' + st.bindImmuneTurns, 'st-bind'));
+    if (st.scourImmuneTurns > 0) chips.appendChild(statusChip('免疫冲刷 ' + st.scourImmuneTurns, 'st-immune-scour'));
+    if (st.seedImmuneTurns > 0) chips.appendChild(statusChip('免疫种子 ' + st.seedImmuneTurns, 'st-immune-seed'));
+    if (st.bindImmuneTurns > 0) chips.appendChild(statusChip('免疫束缚 ' + st.bindImmuneTurns, 'st-immune-bind'));
     if (st.shellLayers > 0) chips.appendChild(statusChip('岩壳 ×' + st.shellLayers, 'st-shell'));
     if (st.hasVein) chips.appendChild(statusChip('岩脉共鸣', 'st-vein'));
     $('#status-' + i).hidden = chips.childNodes.length === 0;
@@ -621,10 +621,24 @@
     }
   }
 
+  const STATUS_TIPS = Object.freeze({
+    'st-bind':  '束缚：只能防御、复读上回合动作或用金之斩挣脱，持续2回合',
+    'st-burn':  '灼烧：每回合末受到1点伤害，防御可驱散',
+    'st-seed':  '寄生：每回合末被偷取1枚随机元素，防御可驱散',
+    'st-wet':   '水渍：次回合末若未防御则受到1点穿透伤害',
+    'st-shell': '岩壳：未防御时每层可抵消1点伤害',
+    'st-vein':  '岩脉共鸣：永久——每回合自动凝聚岩壳；防御时反震攻击者1点',
+    'st-immune-scour': '免疫冲刷：冲刷对该目标无效，持续剩余回合',
+    'st-immune-seed':  '免疫种子：种子寄生对该目标无效，持续剩余回合',
+    'st-immune-bind':  '免疫束缚：藤蔓束缚对该目标无效，持续剩余回合'
+  });
+
   function statusChip(text, cls) {
     const chip = document.createElement('span');
     chip.className = 'status-chip ' + cls;
     chip.textContent = text;
+    const tipKey = cls.split(' ')[0];
+    if (STATUS_TIPS[tipKey]) chip.title = STATUS_TIPS[tipKey];
     return chip;
   }
 

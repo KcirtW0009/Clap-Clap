@@ -1084,6 +1084,11 @@ body::after {
 .status-chip.st-shell { color: #d6bf9a; border: 1px solid #b08968; background: rgba(176, 137, 104, 0.14); }
 .status-chip.st-vein { color: #e7c98a; border: 1px solid #d4a373; background: rgba(212, 163, 115, 0.14); animation: pulse 1.6s ease-in-out infinite; }
 
+/* 免疫期状态（V5.2） */
+.status-chip.st-immune-scour { color: #7dd3fc; border: 1px dashed #38bdf8; background: rgba(56, 189, 248, 0.08); }
+.status-chip.st-immune-seed { color: #6ee7b7; border: 1px dashed #10b981; background: rgba(16, 185, 129, 0.08); }
+.status-chip.st-immune-bind { color: #bef264; border: 1px dashed #84cc16; background: rgba(132, 204, 22, 0.08); }
+
 /* ---- ��ȡ/ʹ������� ---- */
 .sub-panel {
   display: flex;
