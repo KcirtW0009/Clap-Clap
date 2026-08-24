@@ -146,24 +146,37 @@ describe('金系', () => {
     assert(r.p2_hp_change === -2, 'got ' + r.p2_hp_change);
   });
 
-  it('穿甲射击 vs 防御：2 伤穿透', () => {
+  it('穿甲射击 vs 防御：1 伤穿透（需持有武器）', () => {
     const e = fresh();
     e.players[0].elements.Jin = 1;
     e.executeRound(use('Jin', 'craftAP'), DEF);
     assert(e.players[0].weapons.armorPiercing === 1, 'no AP');
+    e.players[0].weapons.hasDualPistols = true;
     const r = e.executeRound(use('Jin', 'apFire'), DEF);
-    assert(r.p2_hp_change === -2, 'got ' + r.p2_hp_change);
+    assert(r.p2_hp_change === -1, 'got ' + r.p2_hp_change);
     assert(e.players[0].weapons.armorPiercing === 0, 'AP not consumed');
   });
 
   it('穿甲弹击碎荆棘之墙：2 伤照常生效且不反弹', () => {
     const e = fresh();
     e.players[0].weapons.armorPiercing = 1;
+    e.players[0].weapons.hasDualPistols = true;
     e.players[1].elements.Mu = 2;
     const r = e.executeRound(use('Jin', 'apFire'), use('Mu', 'thorn'));
     assert(r.p2_hp_change === -2, 'got ' + r.p2_hp_change);
     assert(r.p1_hp_change === 0, 'got ' + r.p1_hp_change);
     assert(r.log_message.indexOf('击碎') !== -1, r.log_message);
+  });
+
+  it('穿甲弹必须持有武器才能发射（无加特林/双枪则不可行）', () => {
+    const e = fresh();
+    e.players[0].weapons.armorPiercing = 1;
+    assert(!e.isActionFeasible(0, use('Jin', 'apFire')), 'no weapon → infeasible');
+    e.players[0].weapons.hasGatling = true;
+    assert(e.isActionFeasible(0, use('Jin', 'apFire')), 'gatling → feasible');
+    e.players[0].weapons.hasGatling = false;
+    e.players[0].weapons.hasDualPistols = true;
+    assert(e.isActionFeasible(0, use('Jin', 'apFire')), 'dual pistols → feasible');
   });
 });
 
@@ -442,9 +455,10 @@ describe('藤蔓束缚平衡', () => {
     e.players[0].elements.Mu = 1;
     e.executeRound(use('Mu', 'bind'), DEF);
     e.players[0].weapons.armorPiercing = 1;
+    e.players[0].weapons.hasDualPistols = true;
     const r = e.executeRound(use('Jin', 'apFire'), gather('Jin'));
     assert(e.players[1].status.bindTurns === 0, 'got ' + e.players[1].status.bindTurns);
-    assert(r.p2_hp_change === -2, 'AP should pierce defense, got ' + r.p2_hp_change);
+    assert(r.p2_hp_change === -1, 'AP should pierce defense, got ' + r.p2_hp_change);
     assert(r.log_message.indexOf('挣脱') !== -1, r.log_message);
   });
 
@@ -810,9 +824,10 @@ describe('土系', () => {
   it('穿甲弹无视岩壳：不掉层也不被抵消', () => {
     const e = fresh();
     e.players[0].weapons.armorPiercing = 1;
+    e.players[0].weapons.hasDualPistols = true;
     e.players[1].status.shellLayers = 3;
     const r = e.executeRound(use('Jin', 'apFire'), gather('Tu'));
-    assert(r.p2_hp_change === -2, 'got ' + r.p2_hp_change);
+    assert(r.p2_hp_change === -1, 'got ' + r.p2_hp_change);
     assert(e.players[1].status.shellLayers === 3, 'got ' + e.players[1].status.shellLayers);
   });
 
@@ -865,12 +880,13 @@ describe('土系', () => {
     assert(r.p1_hp_change === -2, 'single reflect only, got ' + r.p1_hp_change);
   });
 
-  it('穿甲弹打荆棘岩：2 伤生效且反弹照常触发', () => {
+  it('穿甲弹打荆棘岩：1 伤生效且反弹照常触发', () => {
     const e = fresh();
     e.players[0].weapons.armorPiercing = 1;
+    e.players[0].weapons.hasDualPistols = true;
     e.players[1].elements.Tu = 2;
     const r = e.executeRound(use('Jin', 'apFire'), use('Tu', 'thornRock'));
-    assert(r.p2_hp_change === -2, 'AP pierces immunity, got ' + r.p2_hp_change);
+    assert(r.p2_hp_change === -1, 'AP pierces immunity, got ' + r.p2_hp_change);
     assert(r.p1_hp_change === -2, 'reflect still fires, got ' + r.p1_hp_change);
   });
 
@@ -1005,18 +1021,20 @@ describe('V4.0 多人平衡（≥3 人局生效）', () => {
     e.players[0].elements.Mu = 9;
     e.executeRound(use('Mu', 'bind'), DEF, DEF);
     e.players[0].weapons.armorPiercing = 1;
+    e.players[0].weapons.hasDualPistols = true;
     e.executeRound(use('Jin', 'apFire'), DEF, DEF);
     assert(e.players[1].status.bindTurns === 0, 'got ' + e.players[1].status.bindTurns);
     assert(e.players[1].status.bindImmuneTurns === 1, 'got ' + e.players[1].status.bindImmuneTurns);
   });
 
-  it('穿甲弹命中荆棘岩：2 伤 + 震落 1 层岩壳 + 反弹照常', () => {
+  it('穿甲弹命中荆棘岩：1 伤 + 震落 1 层岩壳 + 反弹照常', () => {
     const e = new GameEngine(3);
     e.players[0].weapons.armorPiercing = 1;
+    e.players[0].weapons.hasDualPistols = true;
     e.players[1].elements.Tu = 2;
     e.players[1].status.shellLayers = 1; // AP 震落这层后，反伤按无壳计算
     const r = e.executeRound(use('Jin', 'apFire'), use('Tu', 'thornRock'), DEF);
-    assert(e.players[1].hp === 1, 'AP should damage rock owner by 2, got ' + e.players[1].hp);
+    assert(e.players[1].hp === 2, 'AP should damage rock owner by 1, got ' + e.players[1].hp);
     assert(e.players[1].status.shellLayers === 0, 'shell should drop to 0, got ' + e.players[1].status.shellLayers);
     assert(e.players[0].hp === 1, 'rock reflect 2 (no shell boost) to attacker, got ' + e.players[0].hp);
     assert(r.log_message.indexOf('震落') !== -1, r.log_message);
@@ -1027,6 +1045,7 @@ describe('V4.0 多人平衡（≥3 人局生效）', () => {
     e.players[0].elements.Mu = 2;
     e.players[1].elements.Huo = 1;
     e.players[2].weapons.armorPiercing = 1;
+    e.players[2].weapons.hasDualPistols = true;
     const r = e.executeRound(use('Mu', 'thorn'), use('Huo', 'fireball'), use('Jin', 'apFire'));
     assert(e.players[0].hp === 1, 'wall owner takes 2 from shattered AP (no fireball dmg), got ' + e.players[0].hp);
     assert(e.players[1].hp === 2, 'fireball reflected by wall, got ' + e.players[1].hp);

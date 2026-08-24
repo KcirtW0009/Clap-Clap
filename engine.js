@@ -327,7 +327,8 @@ class GameEngine {
         return p.elements[a.element] >= 1 && this._targetsValid(idx, a);
       }
       if (r.cost === 'ap') {
-        return p.weapons.armorPiercing >= 1 && this._targetsValid(idx, a);
+        // V5.2：穿甲弹必须持有发射武器（加特林或双枪）才能使用
+        return p.weapons.armorPiercing >= 1 && (p.weapons.hasGatling || p.weapons.hasDualPistols) && this._targetsValid(idx, a);
       }
       if (typeof r.cost === 'number') {
         if (p.elements[a.element] < r.cost) return false;
@@ -511,8 +512,8 @@ class GameEngine {
       let apply = true;
       if (ev.ap && this._wall[t]) {
         this._wall[t] = false;
-        // V4.1：穿甲基础伤害已为 2，击碎墙体不再额外 +1
-        lines.push(P[t].name + ' 的荆棘之墙被穿甲弹击碎，2 点伤害照常生效、无反弹！');
+        amount = ev.amount + 1;
+        lines.push(P[t].name + ' 的荆棘之墙被穿甲弹击碎，伤害提升为 ' + amount + '！');
         if (this.multiRules) {
           // V4.0：击碎木墙后压制该目标本回合的荆棘岩/岩脉共鸣反伤
           this._noReflect[t] = true;
@@ -774,8 +775,8 @@ class GameEngine {
       case 'Jin.apFire': {
         p.weapons.armorPiercing -= 1;
         const ta = (this._resolveTargets(i, act) || this._defaultTarget(i))[0];
-        // V4.1：穿甲射击基础伤害提升为 2（全局生效）
-        events.push({ target: ta, amount: 2, ignore: true, ap: true, src: i });
+        // V5.2：穿甲射击基础伤害 1（需持有穿甲弹），击碎荆棘之墙时 +1 并压制反伤
+        events.push({ target: ta, amount: 1, ignore: true, ap: true, src: i });
         lines.push(name + ' 使用 金→穿甲射击 → ' + P[ta].name + '！');
         break;
       }
