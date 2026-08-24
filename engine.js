@@ -512,8 +512,8 @@ class GameEngine {
       let apply = true;
       if (ev.ap && this._wall[t]) {
         this._wall[t] = false;
-        amount = ev.amount + 1;
-        lines.push(P[t].name + ' 的荆棘之墙被穿甲弹击碎，伤害提升为 ' + amount + '！');
+        // V5.2：穿甲弹击碎荆棘之墙不再额外加伤，仅破墙 + 无反弹 + 多人局压制反伤
+        lines.push(P[t].name + ' 的荆棘之墙被穿甲弹击碎（' + ev.amount + ' 伤照常生效、无反弹）！');
         if (this.multiRules) {
           // V4.0：击碎木墙后压制该目标本回合的荆棘岩/岩脉共鸣反伤
           this._noReflect[t] = true;
@@ -775,8 +775,8 @@ class GameEngine {
       case 'Jin.apFire': {
         p.weapons.armorPiercing -= 1;
         const ta = (this._resolveTargets(i, act) || this._defaultTarget(i))[0];
-        // V5.2：穿甲射击基础伤害 1（需持有穿甲弹），击碎荆棘之墙时 +1 并压制反伤
-        events.push({ target: ta, amount: 1, ignore: true, ap: true, src: i });
+        // V5.2：穿甲射击基础伤害 2（需持有武器：加特林/双枪），击碎荆棘之墙时 +1 并压制反伤
+        events.push({ target: ta, amount: 2, ignore: true, ap: true, src: i });
         lines.push(name + ' 使用 金→穿甲射击 → ' + P[ta].name + '！');
         break;
       }
