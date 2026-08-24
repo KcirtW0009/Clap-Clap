@@ -4,8 +4,21 @@
 
 ## 快速开始
 
-- **游玩**：浏览器直接打开 `index.html`
-- **测试**：`npm test`（84 项通过 / 11 项跳过）
+- **单机游玩**：浏览器直接打开 `index.html`
+- **联机对战**：`npm start` 启动服务器（端口 2567），浏览器打开 `http://localhost:2567/online.html`
+- **引擎测试**：`npm test`（94 项通过 / 11 项跳过）
+- **联机集成测试**：`npm run server:test`（自动拉起服务器，跑完 4 组冒烟场景：完整对局 / 房间制·观战·加特林链路 / 操作超时判负 / 断线保座重连）
+
+## 联机玩法速览
+
+房间制支持 **2–9 人同局 + 观战**：
+
+- 大厅创建房间（可选最大人数）或凭房间号加入；也可从房间列表一键加入/观战
+- 房主手动开局；对局中加入者自动转为观战席
+- 观战者实时看到战报、血量与特效，可随时进出
+- 对局中断线保留座位（10 分钟内重连自动恢复）；主动退出判负出局
+- 全员提交动作后统一结算；超时未出招判负
+- 结束后房主可发起"再来一局"，全员返回等待室
 
 ## 玩法速览
 
@@ -24,12 +37,20 @@
 ## 代码结构
 
 ```
-engine.js      游戏引擎 GameEngine（纯数据进出，零 DOM，支持 2–9 人）
-ai.js          AI 决策（七种行为模式加权随机）
-main.js        DOM 表现层（菜单、动画、渲染）
-index.html     页面骨架
-style.css      样式与特效
-engine.test.js 单元测试（自带迷你框架）
+engine.js        游戏引擎 GameEngine（纯数据进出，零 DOM，支持 2–9 人）
+ai.js            AI 决策（七种行为模式加权随机）
+main.js          单机 DOM 表现层（菜单、动画、渲染）
+index.html       单机页面骨架
+style.css        样式与特效（单机/联机共用设计系统）
+engine.test.js   单元测试（自带迷你框架）
+
+server.js        联机服务器入口（express 静态托管 + Colyseus 房间）
+server/game-room.js   'clash' 房间逻辑 V5.0（2–9 人、观战、断线重连、超时判负）
+online.html      联机页面骨架（大厅 / 等待室 / 对战三屏）
+online.js        联机表现层（镜像引擎校验、目标选择、特效、重连）
+online.css       联机专属样式
+server/*-test.js 联机集成测试（smoke / room / timeout / reconnect）
+server/run-all-tests.js  测试编排（npm run server:test）
 ```
 
 架构约定：引擎纯函数式——输入动作数组、输出 `report`；新规则先加测试用例再改 `engine.js`，UI 经 `isActionFeasible` / `getAvailableRoutes` 自动跟随。

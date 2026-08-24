@@ -50,7 +50,8 @@ async function main() {
   const welcomeB = await wb.next('welcome', 5000);
   console.log('[smoke] B welcome:', JSON.stringify(welcomeB));
 
-  // 等待满员自动开局
+  // 房主手动开局（V5.0 房间制）
+  roomA.send('start');
   await wa.next('started', 8000);
   console.log('[smoke] game started');
 

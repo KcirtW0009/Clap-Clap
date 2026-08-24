@@ -35,6 +35,7 @@ async function main() {
   const wa = makeWatcher(await clientA.joinOrCreate('clash', { name: '断线侠' }));
   const wb = makeWatcher(await clientB.joinOrCreate('clash', { name: '坚守者' }));
   await Promise.all([wa.wait('welcome', 5000), wb.wait('welcome', 5000)]);
+  wa.room.send('start'); // V5.0 房间制：房主手动开局
   await wb.wait('started', 8000);
   console.log('[dc] started');
 

@@ -1,13 +1,16 @@
 'use strict';
 
-// V4.0 联机对战房间：服务器权威，基于 GameEngine 的 submitAction/runTurn API
+// V5.0 房间制联机房间：服务器权威，基于 GameEngine 的 submitAction/runTurn API
+// - 房间由玩家显式创建（可设 2–9 人上限），房主手动开局
+// - 支持观战：任何时候都可进房观战（座位满/对局中自动转为观战）
+// - 对局结束后房主可"再来一局"（保留座位回到等待室）
 const { Room } = require('colyseus');
 const { Schema, MapSchema, defineTypes } = require('@colyseus/schema');
 const { GameEngine, normalizeAction } = require('../engine');
 
 const INTERMISSION_MS = Number(process.env.INTERMISSION_MS) || 5000; // 回合间歇（展示战报）
 const RECONNECT_MS = Number(process.env.RECONNECT_MS) || 600000;     // 断线重连窗口（不判负，仅保座）
-const AUTO_START_MS = 2000;                                          // 满员后自动开局延时
+const SPECTATOR_CAP = 10;                                            // 观战席上限
 
 // 回合操作超时分档：<4 人 45s；≥4 人 60s；≥6 人 90s（TURN_TIMEOUT_MS 可强制覆盖，供测试）
 function turnTimeoutMs(playerCount) {
@@ -16,6 +19,10 @@ function turnTimeoutMs(playerCount) {
   if (playerCount >= 6) return 90000;
   if (playerCount >= 4) return 60000;
   return 45000;
+}
+
+function clampPlayers(n) {
+  return Math.max(2, Math.min(9, Math.floor(Number(n) || 2)));
 }
 
 class PlayerView extends Schema {
@@ -34,6 +41,7 @@ class RoomState extends Schema {
     super();
     this.phase = 'lobby'; // lobby | playing | ended
     this.round = 0;
+    this.maxPlayers = 2;
     this.hostSessionId = '';
     this.winnerName = '';
     this.players = new MapSchema();
@@ -43,6 +51,7 @@ class RoomState extends Schema {
 defineTypes(RoomState, {
   phase: 'string',
   round: 'uint16',
+  maxPlayers: 'uint8',
   hostSessionId: 'string',
   winnerName: 'string',
   players: { map: PlayerView },
@@ -57,20 +66,31 @@ defineTypes(PlayerView, {
 
 class GameRoom extends Room {
   onCreate(options) {
-    this.maxClients = 2;
-    this.setMetadata({ title: (options && options.title) || '五行拍手对战' });
+    const maxPlayers = clampPlayers(options && options.maxPlayers);
+    this.maxClients = maxPlayers + SPECTATOR_CAP; // 座位 + 观战席
+    this.maxPlayers = maxPlayers;
+    this.roomTitle = String((options && options.title) || '五行拍手对战').slice(0, 24);
+    this.setMetadata(this.buildMeta('等待玩家…'));
     this.setState(new RoomState());
+    this.state.maxPlayers = maxPlayers;
     this.engine = null;
     this.turnCount = 0; // 引擎不含回合计数，由房间维护
     this.turnTimer = null; // 操作超时计时器
     this.seatBySession = new Map(); // sessionId -> 座位号
     this.viewBySession = new Map(); // sessionId -> PlayerView
+    this.specBySession = new Map(); // sessionId -> { name }
     this.lastReport = null;
 
     this.onMessage('start', (client) => {
-      if (this.state.phase === 'lobby' && client.sessionId === this.state.hostSessionId) {
+      if (this.state.phase === 'lobby' && client.sessionId === this.state.hostSessionId &&
+        this.viewBySession.size >= 2) {
         this.startGame();
       }
+    });
+
+    this.onMessage('rematch', (client) => {
+      if (this.state.phase !== 'ended' || client.sessionId !== this.state.hostSessionId) return;
+      this.backToLobby();
     });
 
     this.onMessage('submit', (client, message) => {
@@ -89,15 +109,21 @@ class GameRoom extends Room {
   }
 
   onJoin(client, options) {
-    // 对局中不允许旁观/顶替（重连走 allowReconnection 通道）
-    if (this.state.phase !== 'lobby') {
-      client.leave(4001, '对局进行中，无法加入');
-      return;
+    const wantsSeat = !(options && options.spectate);
+    const seatFull = this.viewBySession.size >= this.state.maxPlayers;
+    // 有空闲座位且在大厅 → 入座；否则一律观战（对局中/座位满/主动观战）
+    if (wantsSeat && this.state.phase === 'lobby' && !seatFull) {
+      this.joinAsPlayer(client, options);
+    } else {
+      this.joinAsSpectator(client, options);
     }
-    const seat = this.viewBySession.size;
+  }
+
+  joinAsPlayer(client, options) {
+    const seat = this.nextSeat();
     const view = new PlayerView();
     view.sessionId = client.sessionId;
-    view.name = String((options && options.name) || ('玩家' + (seat + 1))).slice(0, 12);
+    view.name = this.uniqueName(String((options && options.name) || ('玩家' + (seat + 1))).slice(0, 12));
     view.seat = seat;
     view.hp = 3;
     this.state.players.set(client.sessionId, view);
@@ -106,22 +132,42 @@ class GameRoom extends Room {
     this.seatBySession.set(client.sessionId, seat);
 
     client.send('welcome', {
+      role: 'player',
       seat,
       total: this.viewBySession.size,
       isHost: client.sessionId === this.state.hostSessionId,
     });
-    this.broadcast('lobby', this.lobbySnapshot());
+    this.broadcastRoomInfo();
+    this.refreshMeta();
+  }
 
-    if (this.viewBySession.size >= 2) {
-      this.clock.setTimeout(() => {
-        if (this.state.phase === 'lobby' && this.viewBySession.size >= 2) this.startGame();
-      }, AUTO_START_MS);
+  joinAsSpectator(client, options) {
+    this.specBySession.set(client.sessionId, {
+      name: String((options && options.name) || '观众').slice(0, 12),
+    });
+    client.send('welcome', { role: 'spectator', seat: -1, total: this.viewBySession.size });
+    client.send('roomInfo', this.roomInfo());
+    if (this.engine) {
+      // 对局中/已结束：直接补发完整快照，观战端立即渲染
+      client.send('started', Object.assign({}, this.fullSnapshot(null), { resumed: false }));
+      if (this.lastReport) client.send('report', this.reportPayload());
+      if (this.state.phase === 'playing') {
+        client.send('turnDeadline', { seconds: this.turnDeadlineSeconds() });
+      }
     }
+    this.broadcast('system', {
+      text: this.specBySession.get(client.sessionId).name + ' 进入观战',
+    });
+    this.broadcastRoomInfo();
+    this.refreshMeta();
   }
 
   onLeave(client, consented) {
     const view = this.viewBySession.get(client.sessionId);
-    if (!view) return;
+    if (!view) {
+      if (this.specBySession.delete(client.sessionId)) this.broadcastRoomInfo();
+      return;
+    }
 
     if (!consented && this.state.phase === 'playing') {
       // 对局中意外断线：保留座位等待重连（不判负）；挂机由回合操作超时兜底
@@ -130,6 +176,7 @@ class GameRoom extends Room {
       this.allowReconnection(client, RECONNECT_MS).then((reconnected) => {
         view.connected = true;
         reconnected.send('welcome', {
+          role: 'player',
           seat: view.seat,
           total: this.viewBySession.size,
           isHost: reconnected.sessionId === this.state.hostSessionId,
@@ -141,11 +188,12 @@ class GameRoom extends Room {
         // 重连窗口到期：仅标记离线，不判负（操作超时会处理长期挂机者）
         console.log('[room] reconnect window expired, sid=' + client.sessionId);
         view.connected = false;
+        this.broadcastRoomInfo();
       });
       return;
     }
 
-    // 大厅离开 / 主动退出：移除座位
+    // 大厅离开 / 观众离开 / 主动退出对局
     this.state.players.delete(client.sessionId);
     this.viewBySession.delete(client.sessionId);
     this.seatBySession.delete(client.sessionId);
@@ -155,7 +203,7 @@ class GameRoom extends Room {
       return;
     }
     {
-      // 重新排座（保持连续编号）
+      // 大厅内离场：重新排座（保持连续编号）+ 房主继承
       let i = 0;
       const views = [...this.viewBySession.values()].sort((a, b) => a.seat - b.seat);
       for (const v of views) v.seat = i++;
@@ -164,7 +212,8 @@ class GameRoom extends Room {
         const first = this.viewBySession.keys().next().value;
         this.state.hostSessionId = first;
       }
-      this.broadcast('lobby', this.lobbySnapshot());
+      this.broadcastRoomInfo();
+      this.refreshMeta();
     }
   }
 
@@ -178,14 +227,30 @@ class GameRoom extends Room {
     if (this.state.phase !== 'lobby' || this.viewBySession.size < 2) return;
     this.engine = new GameEngine(this.viewBySession.size);
     this.turnCount = 1;
-    for (const [sid, view] of this.viewBySession) {
+    for (const [, view] of this.viewBySession) {
       this.engine.players[view.seat].name = view.name; // 战报/提示使用玩家昵称
       view.hp = this.engine.players[view.seat].hp;
     }
     this.state.phase = 'playing';
+    this.state.winnerName = '';
     this.state.round = this.turnCount;
     this.broadcast('started', this.fullSnapshot(null));
     this.startTurnTimer();
+    this.refreshMeta();
+  }
+
+  backToLobby() {
+    this.clearTurnTimer();
+    this.engine = null;
+    this.turnCount = 0;
+    this.lastReport = null;
+    this.state.phase = 'lobby';
+    this.state.round = 0;
+    this.state.winnerName = '';
+    for (const [, view] of this.viewBySession) view.hp = 3;
+    this.broadcast('system', '房主发起再战，回到等待室…');
+    this.broadcastRoomInfo();
+    this.refreshMeta();
   }
 
   // ---- 回合操作超时：到点未提交者直接判负出局，断线者重连可继续（在时限内提交即可）----
@@ -195,6 +260,11 @@ class GameRoom extends Room {
     const ms = turnTimeoutMs(this.viewBySession.size);
     this.turnTimer = this.clock.setTimeout(() => this.onTurnTimeout(), ms);
     this.broadcast('turnDeadline', { seconds: Math.ceil(ms / 1000) });
+  }
+
+  turnDeadlineSeconds() {
+    const ms = turnTimeoutMs(this.viewBySession.size);
+    return Math.ceil(ms / 1000);
   }
 
   clearTurnTimer() {
@@ -230,37 +300,17 @@ class GameRoom extends Room {
       }
     }
     this.broadcast('system', { text: systemText });
-
-    for (const [sid, view] of this.viewBySession) {
-      view.hp = this.engine.players[view.seat].hp;
-    }
-    const report = this.engine.runTurn();
-    this.lastReport = report;
-    const payload = Object.assign({}, report, {
-      round: this.turnCount,
-      names: this.engine.players.map(p => p.name),
-    });
-    this.broadcast('report', payload);
-
-    const winner = this.engine.getWinner();
-    if (winner) {
-      this.endGame(winner === '平局' ? '平局！' : winner + ' 获胜！');
-      return;
-    }
-    this.broadcast('intermission', { seconds: Math.ceil(INTERMISSION_MS / 1000) });
-    this.clock.setTimeout(() => {
-      if (this.state.phase !== 'playing' || !this.engine) return;
-      this.engine.nextRound();
-      this.turnCount += 1;
-      this.state.round = this.turnCount;
-      this.broadcast('sync', this.fullSnapshot(null));
-      this.startTurnTimer();
-    }, INTERMISSION_MS);
+    this.resolveAndContinue();
   }
 
   advanceIfReady() {
     if (!this.engine || !this.engine.allActionsSubmitted()) return;
     this.clearTurnTimer();
+    this.resolveAndContinue();
+  }
+
+  resolveAndContinue() {
+    if (!this.engine) return;
     const report = this.engine.runTurn();
     this.lastReport = report;
     this.state.round = this.turnCount;
@@ -269,11 +319,7 @@ class GameRoom extends Room {
       view.hp = this.engine.players[view.seat].hp;
     }
 
-    const payload = Object.assign({}, report, {
-      round: this.turnCount,
-      names: this.engine.players.map(p => p.name),
-    });
-    this.broadcast('report', payload);
+    this.broadcast('report', this.reportPayload());
 
     const winner = this.engine.getWinner();
     if (winner) {
@@ -292,24 +338,71 @@ class GameRoom extends Room {
     }, INTERMISSION_MS);
   }
 
+  reportPayload() {
+    return Object.assign({}, this.lastReport, {
+      round: this.turnCount,
+      names: this.engine ? this.engine.players.map(p => p.name) : [],
+    });
+  }
+
   endGame(text) {
     this.clearTurnTimer();
     this.state.phase = 'ended';
     this.state.winnerName = text;
-    this.broadcast('ended', { text });
+    this.broadcast('ended', { text, canRematch: true });
     this.broadcast('sync', this.fullSnapshot(null));
-    this.lock(); // 结束后不再接收新连接
+    this.refreshMeta();
   }
 
-  // ---- 快照 ----
+  // ---- 快照与广播 ----
 
-  lobbySnapshot() {
+  roomInfo() {
+    const players = [...this.viewBySession.values()]
+      .sort((a, b) => a.seat - b.seat)
+      .map(v => ({
+        name: v.name,
+        seat: v.seat,
+        connected: v.connected,
+        isHost: v.sessionId === this.state.hostSessionId,
+      }));
     return {
-      players: [...this.viewBySession.values()]
-        .sort((a, b) => a.seat - b.seat)
-        .map(v => ({ name: v.name, seat: v.seat })),
+      phase: this.state.phase,
+      round: this.turnCount,
+      maxPlayers: this.state.maxPlayers,
       hostSessionId: this.state.hostSessionId,
+      players,
+      spectators: [...this.specBySession.values()].map(s => s.name),
     };
+  }
+
+  broadcastRoomInfo() {
+    this.broadcast('roomInfo', this.roomInfo());
+  }
+
+  buildMeta(statusText) {
+    return {
+      title: this.roomTitle,
+      status: statusText || '',
+      phase: this.state ? this.state.phase : 'lobby',
+      players: this.viewBySession ? this.viewBySession.size : 0,
+      maxPlayers: this.maxPlayers,
+      spectators: this.specBySession ? this.specBySession.size : 0,
+      hostName: this.hostName(),
+    };
+  }
+
+  hostName() {
+    if (!this.state || !this.viewBySession) return '';
+    if (!this.viewBySession.has(this.state.hostSessionId)) return '';
+    return this.viewBySession.get(this.state.hostSessionId).name;
+  }
+
+  refreshMeta() {
+    const phase = this.state.phase;
+    let status = '等待玩家 ' + this.viewBySession.size + '/' + this.state.maxPlayers;
+    if (phase === 'playing') status = '对战中 · 回合 ' + this.turnCount;
+    else if (phase === 'ended') status = '已结束 · ' + this.state.winnerName;
+    this.setMetadata(this.buildMeta(status));
   }
 
   fullSnapshot(forClient) {
@@ -319,14 +412,39 @@ class GameRoom extends Room {
       winnerText: this.state.winnerName,
       players: this.engine
         ? JSON.parse(JSON.stringify(this.engine.players))
-        : [...this.viewBySession.values()].map(v => ({ name: v.name })),
+        : [...this.viewBySession.values()]
+          .sort((a, b) => a.seat - b.seat)
+          .map(v => ({ id: v.seat, name: v.name })),
       lastReport: this.lastReport,
+      names: this.engine ? this.engine.players.map(p => p.name) :
+        [...this.viewBySession.values()].sort((a, b) => a.seat - b.seat).map(v => v.name),
     };
     if (forClient) {
       const view = this.viewBySession.get(forClient.sessionId);
-      base.you = { seat: view ? view.seat : -1 };
+      base.you = {
+        seat: view ? view.seat : -1,
+        role: view ? 'player' : 'spectator',
+      };
     }
     return base;
+  }
+
+  nextSeat() {
+    let i = 0;
+    const views = [...this.viewBySession.values()].sort((a, b) => a.seat - b.seat);
+    for (const v of views) {
+      if (v.seat !== i) break;
+      i++;
+    }
+    return i;
+  }
+
+  uniqueName(base) {
+    const taken = new Set([...this.viewBySession.values()].map(v => v.name));
+    if (!taken.has(base)) return base;
+    let k = 2;
+    while (taken.has(base + k)) k++;
+    return base + k;
   }
 
   rebuildSeatMap() {
